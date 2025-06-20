@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Binary Border + Fake Terminal + Morse</title>
+  <style>
+    /* --- Styles pour contour binaire --- */
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: black;
+      overflow: hidden;
+      font-family: monospace;
+      color: lime;
+    }
+    .border-container {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .line {
+      white-space: nowrap;
+      overflow: hidden;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .top, .bottom {
+      font-size: 18px;
+      height: 24px;
+    }
+    .left, .right {
+      position: fixed;
+      top: 0;
+      width: 24px;
+      height: 100vh;
+      font-size: 18px;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+    .left {
+      left: 0;
+    }
+    .right {
+      right: 0;
+    }
+
+    /* --- Styles pour fake terminal --- */
+    #terminal {
+      position: relative;
+      z-index: 10; /* devant le binaire */
+      font-size: 24px;
+      white-space: nowrap;
+      user-select: none;
+      color: #00ff00;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .cursor {
+      display: inline-block;
+      width: 10px;
+      background: #00ff00;
+      margin-left: 3px;
+      animation: blink 1s steps(2, start) infinite;
+      vertical-align: bottom;
+    }
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* Écran noir de fin */
+    #black-screen {
+      position: fixed;
+      top:0; left:0; width:100vw; height:100vh;
+      background: black;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.5s ease-in-out;
+      z-index: 20; /* devant tout */
+    }
+    #black-screen.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* Overlay clic pour play */
+    #click-to-play {
+      position: fixed;
+      top:0; left:0; width:100vw; height:100vh;
+      background: rgba(0,0,0,0.85);
+      color: #00ff00;
+      font-family: monospace;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      font-size: 28px;
+      cursor: pointer;
+      z-index: 30;
+      user-select: none;
+      text-align: center;
+      padding: 0 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Contour binaire -->
+  <div class="border-container">
+    <div class="top line"></div>
+    <div class="left"></div>
+    <div class="right"></div>
+    <div class="bottom line"></div>
+  </div>
+
+  <!-- Fake terminal au centre -->
+  <div id="terminal">Please enter the password<span class="cursor"></span></div>
+
+  <!-- Ecran noir -->
+  <div id="black-screen"></div>
+
+  <!-- Overlay clic pour play -->
+  <div id="click-to-play">Autoriser l'accès</div>
+
+  <!-- Audio morse caché -->
+  <audio id="morseAudio" src="audio/morse.wav" preload="auto"></audio>
+
+  <script>
+    // === Contour binaire ===
+    function generateBinaryLine(length) {
+      let line = '';
+      for(let i=0; i<length; i++) {
+        line += Math.random() > 0.5 ? '0' : '1';
+      }
+      return line;
+    }
+
+    function animateLine(element, speed) {
+      let text = element.textContent;
+      setInterval(() => {
+        text = text.slice(1) + text[0];
+        element.textContent = text;
+      }, speed);
+    }
+
+    const topLine = document.querySelector('.top');
+    const bottomLine = document.querySelector('.bottom');
+    const leftCol = document.querySelector('.left');
+    const rightCol = document.querySelector('.right');
+
+    const charWidth = 10;
+    let widthChars = Math.floor(window.innerWidth / charWidth);
+    let horizontalLine = generateBinaryLine(widthChars);
+
+    topLine.textContent = horizontalLine;
+    bottomLine.textContent = horizontalLine;
+
+    animateLine(topLine, 100);
+    animateLine(bottomLine, 100);
+
+    const charHeight = 24;
+    let heightChars = Math.floor(window.innerHeight / charHeight);
+
+    function generateBinaryColumn(length) {
+      let arr = [];
+      for(let i=0; i<length; i++) {
+        arr.push(Math.random() > 0.5 ? '0' : '1');
+      }
+      return arr;
+    }
+
+    let leftArr = generateBinaryColumn(heightChars);
+    let rightArr = generateBinaryColumn(heightChars);
+
+    function animateColumn(arr, element, speed) {
+      setInterval(() => {
+        arr.push(arr.shift());
+        element.textContent = arr.join('\n');
+      }, speed);
+    }
+
+    leftCol.textContent = leftArr.join('\n');
+    rightCol.textContent = rightArr.join('\n');
+
+    animateColumn(leftArr, leftCol, 150);
+    animateColumn(rightArr, rightCol, 150);
+
+    window.addEventListener('resize', () => {
+      widthChars = Math.floor(window.innerWidth / charWidth);
+      horizontalLine = generateBinaryLine(widthChars);
+      topLine.textContent = horizontalLine;
+      bottomLine.textContent = horizontalLine;
+
+      heightChars = Math.floor(window.innerHeight / charHeight);
+      leftArr = generateBinaryColumn(heightChars);
+      rightArr = generateBinaryColumn(heightChars);
+    });
+
+
+    // === Fake terminal & black screen & audio play ===
+    const terminal = document.getElementById('terminal');
+    const cursor = terminal.querySelector('.cursor');
+    const blackScreen = document.getElementById('black-screen');
+    const clickToPlay = document.getElementById('click-to-play');
+    const morseAudio = document.getElementById('morseAudio');
+
+    const password = " VHS_USER_1337";
+    let index = 0;
+    const delayBeforeTyping = 1500;
+
+    function typePassword() {
+      if (index < password.length) {
+        terminal.textContent += password[index];
+        terminal.appendChild(cursor);
+        index++;
+        setTimeout(typePassword, 120);
+      } else {
+        setTimeout(() => {
+          blackScreen.classList.add('active');
+          cursor.style.display = 'none';
+
+          // Après 10 secondes, on affiche overlay clic pour jouer audio
+          setTimeout(() => {
+            clickToPlay.style.display = 'flex';
+          }, 10000);
+
+        }, 800);
+      }
+    }
+
+    // Quand on clique sur l'overlay, on joue l'audio et on cache l'overlay
+    clickToPlay.addEventListener('click', () => {
+      morseAudio.play().catch(err => {
+        console.warn("Lecture audio bloquée :", err);
+      });
+      clickToPlay.style.display = 'none';
+    });
+
+    setTimeout(typePassword, delayBeforeTyping);
+  </script>
+</body>
+</html>
